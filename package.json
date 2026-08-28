@@ -1,0 +1,38 @@
+{
+  "name": "@owlvigil/sdk",
+  "version": "0.1.0",
+  "description": "Node.js SDK for OwlVigil Gateway and Management APIs",
+  "keywords": ["owlvigil", "ai", "gateway", "openai", "sdk"],
+  "author": "OwlVigil",
+  "license": "MIT",
+  "homepage": "https://github.com/Syrovex/owlvigil_sdk_nodejs#readme",
+  "bugs": { "url": "https://github.com/Syrovex/owlvigil_sdk_nodejs/issues" },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "!dist/**/*.test.js", "!dist/**/*.test.d.ts", "docs/API.md", "README.md", "CHANGELOG.md", "SECURITY.md", "LICENSE"],
+  "sideEffects": false,
+  "publishConfig": { "access": "public", "provenance": true },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/*.test.js",
+    "check": "npm test && npm pack --dry-run",
+    "prepack": "npm run build"
+  },
+  "engines": { "node": ">=20" },
+  "packageManager": "npm@11.5.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Syrovex/owlvigil_sdk_nodejs.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}
