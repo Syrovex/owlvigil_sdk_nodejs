@@ -6,7 +6,7 @@ Gateway, Management API, OAuth2, and webhook verification. Requires Node.js
 
 ## Installation
 
-After version 0.1.0 is published:
+After version 0.2.0 is published:
 
 ```bash
 npm install @owlvigil/sdk
