@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { OwlVigil, OwlVigilApiError, OwlVigilError, VERSION, verifyWebhook } from "./index.js";
+import { MANAGEMENT_OPERATIONS, OwlVigil, OwlVigilApiError, OwlVigilError, VERSION, verifyWebhook } from "./index.js";
 
 test("public version matches package version", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
@@ -30,6 +30,18 @@ test("lists models with gateway authentication", async () => {
   assert.equal(requests[0]?.headers.get("authorization"), "Bearer test_gateway_key");
 });
 
+test("gets a typed Gateway model", async () => {
+  const client = new OwlVigil({
+    gatewayKey: "test_gateway_key",
+    fetch: async (input) => {
+      assert.equal(new URL(input instanceof Request ? input.url : input).pathname, "/v1/models/gpt-4o-mini");
+      return new Response(JSON.stringify({ id: "gpt-4o-mini", object: "model", owned_by: "openai" }), { status: 200 });
+    },
+  });
+  const response = await client.gateway.getModel("gpt-4o-mini");
+  assert.equal(response.data.owned_by, "openai");
+});
+
 test("verifies webhook signature", () => {
   const payload = Buffer.from('{"type":"test"}');
   const timestamp = 1_700_000_000;
@@ -55,6 +67,27 @@ test("preserves management error request id from envelope", async () => {
     assert.equal(error.requestId, "req_body");
     return true;
   });
+});
+
+test("executes operations from the OpenAPI Management catalog", async () => {
+  assert.equal(Object.keys(MANAGEMENT_OPERATIONS).length, 144);
+  let request: Request | undefined;
+  const client = new OwlVigil({
+    apiKey: "test_api_key",
+    managementBaseUrl: "https://api.example.test/v1",
+    fetch: async (input, init) => {
+      request = new Request(input, init);
+      return new Response(JSON.stringify({ request_id: "req_provider", code: "ok", message: "", data: { id: 9 } }), { status: 201 });
+    },
+  });
+  const response = await client.management.openApi("post_gateway_providers", {
+    query: { workspace_id: 7 },
+    body: { name: "Primary", api_key: "upstream-key", type: "openai", workspace_id: 7 },
+  });
+  assert.equal(response.data.id, 9);
+  assert.equal(request?.method, "POST");
+  assert.equal(request?.url, "https://api.example.test/v1/gateway/providers?workspace_id=7");
+  assert.deepEqual(await request?.json(), { name: "Primary", api_key: "upstream-key", type: "openai", workspace_id: 7 });
 });
 
 test("rejects attempts to override authentication header", async () => {
@@ -91,6 +124,26 @@ test("preserves custom OAuth base paths", async () => {
   assert.equal(client.oauth2.authorizationUrl({ clientId: "client", redirectUri: "https://app.example.test/callback" }).pathname, "/owlvigil/oauth/authorize");
   await client.oauth2.clientCredentials({ clientId: "client", clientSecret: "secret" });
   assert.equal(urls[0], "https://proxy.example.test/owlvigil/oauth/token");
+});
+
+test("supports OAuth revocation and user info", async () => {
+  const requests: Request[] = [];
+  const client = new OwlVigil({
+    oauthBaseUrl: "https://oauth.example.test",
+    fetch: async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      if (request.url.endsWith("/oauth/userinfo")) {
+        return new Response(JSON.stringify({ sub: "user-1", email: "user@example.test" }), { status: 200 });
+      }
+      return new Response(null, { status: 204 });
+    },
+  });
+  await client.oauth2.revoke("access-token");
+  const user = await client.oauth2.userInfo("access-token");
+  assert.equal(user.sub, "user-1");
+  assert.equal(requests[0]?.url, "https://oauth.example.test/oauth/revoke");
+  assert.equal(requests[1]?.headers.get("authorization"), "Bearer access-token");
 });
 
 test("wraps malformed successful OAuth responses", async () => {

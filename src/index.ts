@@ -1,4 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { MANAGEMENT_OPERATIONS, type ManagementOperationId } from "./management-operations.js";
+import type { ManagementOperationBody, ManagementOperationData } from "./management-types.js";
+
+export { MANAGEMENT_OPERATIONS } from "./management-operations.js";
+export type { ManagementOperationDefinition, ManagementOperationId } from "./management-operations.js";
+export * from "./management-types.js";
 
 export const VERSION = "0.2.0";
 
@@ -33,6 +39,18 @@ export class OwlVigilApiError extends OwlVigilError {
   ) {
     super(`owlvigil: status=${status}${code ? ` code=${code}` : ""}${requestId ? ` request_id=${requestId}` : ""}${message ? ` message=${message}` : ""}`);
     this.name = "OwlVigilApiError";
+  }
+}
+
+export class OwlVigilOAuthError extends OwlVigilError {
+  constructor(
+    public readonly status: number,
+    public readonly errorCode: string,
+    public readonly errorDescription: string,
+    public readonly errorUri = "",
+  ) {
+    super(`owlvigil oauth2: status=${status}${errorCode ? ` error=${errorCode}` : ""}${errorDescription ? ` description=${errorDescription}` : ""}`);
+    this.name = "OwlVigilOAuthError";
   }
 }
 
@@ -195,21 +213,40 @@ class Transport {
 export interface Message { role: string; content?: string | null | Array<Record<string, unknown>>; name?: string; tool_call_id?: string; tool_calls?: Array<Record<string, unknown>> }
 export interface ChatCompletionRequest { model: string; messages: Message[]; temperature?: number; max_tokens?: number; max_completion_tokens?: number; top_p?: number; tools?: Array<Record<string, unknown>>; tool_choice?: unknown; response_format?: Record<string, unknown>; stream?: boolean; [key: string]: unknown }
 export interface ChatCompletion { id: string; model: string; choices: Array<{ index: number; message?: Message; finish_reason?: string }>; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }
-export interface ModelList { object: string; data: Array<{ id: string; object?: string; created?: number; owned_by?: string }> }
+export interface Model { id: string; object?: string; owned_by?: string; [key: string]: unknown }
+export interface ModelList { object: string; data: Model[] }
+export interface ResponseRequest { model: string; input: unknown; stream?: boolean; [key: string]: unknown }
+export interface GatewayResponse { id: string; object: string; model: string; output?: unknown; [key: string]: unknown }
+export interface EmbeddingsRequest { model: string; input: unknown; [key: string]: unknown }
+export interface EmbeddingData { object: string; index: number; embedding: number[] }
+export interface EmbeddingsResponse { object: string; data: EmbeddingData[]; model: string; usage?: { prompt_tokens: number; total_tokens: number } }
+export interface AnthropicMessage { role: string; content: unknown }
+export interface AnthropicMessageRequest { model: string; messages: AnthropicMessage[]; max_tokens: number; stream?: boolean; [key: string]: unknown }
+export interface AnthropicMessageResponse { id: string; type: string; role: string; model: string; content: unknown; [key: string]: unknown }
 export interface SseEvent { event: string; data: string; id: string }
 export interface WorkspaceList { items: Array<{ id: number; workspace_id?: number; name: string; slug?: string; status?: string; role?: string }>; page_info: { next_cursor?: string; has_more?: boolean } }
 export interface UsageSummary { workspace_id?: number; requests: number; tokens: number; cost: number; current_period?: string }
 export interface RequestLog { request_id: string; model: string; status: string; status_code: number; total_tokens: number; total_cost: number; [key: string]: unknown }
+export interface ManagementOperationRequest {
+  path?: Record<string, string | number>;
+  query?: Record<string, string | number | boolean | Array<string | number | boolean> | null | undefined>;
+  body?: unknown;
+  options?: RequestOptions;
+}
 
 export class GatewayClient {
   constructor(private readonly transport: Transport) {}
   listModels(options?: RequestOptions) { return this.transport.request<ModelList>("GET", "/v1/models", undefined, options); }
+  getModel(model: string, options?: RequestOptions) {
+    if (!model.trim()) throw new OwlVigilError("model is required");
+    return this.transport.request<Model>("GET", `/v1/models/${encodeURIComponent(model)}`, undefined, options);
+  }
   createChatCompletion(request: ChatCompletionRequest, options?: RequestOptions) { return this.transport.request<ChatCompletion>("POST", "/v1/chat/completions", request, options); }
   createChatCompletionStream(request: ChatCompletionRequest, options?: RequestOptions) { return this.transport.stream("/v1/chat/completions", { ...request, stream: true }, options); }
-  createResponse(request: Record<string, unknown>, options?: RequestOptions) { return this.transport.request<Record<string, unknown>>("POST", "/v1/responses", request, options); }
-  createResponseStream(request: Record<string, unknown>, options?: RequestOptions) { return this.transport.stream("/v1/responses", { ...request, stream: true }, options); }
-  createEmbeddings(request: Record<string, unknown>, options?: RequestOptions) { return this.transport.request<Record<string, unknown>>("POST", "/v1/embeddings", request, options); }
-  createAnthropicMessage(request: Record<string, unknown>, options?: RequestOptions) { return this.transport.request<Record<string, unknown>>("POST", "/anthropic/v1/messages", request, options); }
+  createResponse(request: ResponseRequest, options?: RequestOptions) { return this.transport.request<GatewayResponse>("POST", "/v1/responses", request, options); }
+  createResponseStream(request: ResponseRequest, options?: RequestOptions) { return this.transport.stream("/v1/responses", { ...request, stream: true }, options); }
+  createEmbeddings(request: EmbeddingsRequest, options?: RequestOptions) { return this.transport.request<EmbeddingsResponse>("POST", "/v1/embeddings", request, options); }
+  createAnthropicMessage(request: AnthropicMessageRequest, options?: RequestOptions) { return this.transport.request<AnthropicMessageResponse>("POST", "/anthropic/v1/messages", request, options); }
 }
 
 export class ManagementClient {
@@ -231,6 +268,26 @@ export class ManagementClient {
     if (!requestIdValue.trim()) throw new OwlVigilError("requestId is required");
     return this.transport.request<RequestLog>("GET", `/gateway/request-logs/${encodeURIComponent(requestIdValue)}`, undefined, { ...options, workspaceId });
   }
+
+  /** Execute any operation in the published OpenAPI Management catalog. */
+  openApi<K extends ManagementOperationId>(operationId: K, request: ManagementOperationRequest & { body?: ManagementOperationBody[K] } = {}): Promise<ApiResponse<ManagementOperationData[K]>> {
+    const operation = MANAGEMENT_OPERATIONS[operationId];
+    return this.request<ManagementOperationData[K]>(operation.method, operation.path, request);
+  }
+
+  request<T = unknown>(method: string, path: string, request: ManagementOperationRequest = {}): Promise<ApiResponse<T>> {
+    if (!["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(method)) {
+      throw new OwlVigilError("Unsupported Management HTTP method: " + method);
+    }
+    const resolvedPath = resolveManagementPath(path, request.path);
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(request.query ?? {})) {
+      if (value === undefined || value === null) continue;
+      for (const item of Array.isArray(value) ? value : [value]) query.append(key, String(item));
+    }
+    const suffix = query.toString() ? "?" + query.toString() : "";
+    return this.transport.request<T>(method, resolvedPath + suffix, request.body, request.options);
+  }
 }
 
 export class OAuth2Client {
@@ -249,19 +306,43 @@ export class OAuth2Client {
     return url;
   }
 
-  exchange(options: { clientId: string; clientSecret?: string; code: string; redirectUri: string; codeVerifier?: string }) {
+  exchange(options: { clientId: string; clientSecret?: string; code: string; redirectUri: string; codeVerifier?: string }): Promise<OAuthTokenResponse> {
     return this.token("/oauth/token", { grant_type: "authorization_code", client_id: options.clientId, client_secret: options.clientSecret, code: options.code, redirect_uri: options.redirectUri, code_verifier: options.codeVerifier });
   }
 
-  refresh(options: { clientId: string; clientSecret?: string; refreshToken: string }) {
+  refresh(options: { clientId: string; clientSecret?: string; refreshToken: string }): Promise<OAuthTokenResponse> {
     return this.token("/oauth/token/refresh", { grant_type: "refresh_token", client_id: options.clientId, client_secret: options.clientSecret, refresh_token: options.refreshToken });
   }
 
-  clientCredentials(options: { clientId: string; clientSecret: string; scopes?: string[] }) {
+  clientCredentials(options: { clientId: string; clientSecret: string; scopes?: string[] }): Promise<OAuthTokenResponse> {
     return this.token("/oauth/token", { grant_type: "client_credentials", client_id: options.clientId, client_secret: options.clientSecret, scope: options.scopes?.join(" ") });
   }
 
-  private async token(path: string, values: Record<string, string | undefined>): Promise<Record<string, unknown>> {
+  async revoke(token: string): Promise<void> {
+    if (!token.trim()) throw new OwlVigilError("OAuth token is required");
+    await this.token("/oauth/revoke", { token }, true);
+  }
+
+  async userInfo(accessToken: string): Promise<OAuthUserInfo> {
+    if (!accessToken.trim()) throw new OwlVigilError("OAuth access token is required");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(new OwlVigilError("OwlVigil OAuth request timed out")), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(resolveUrl(this.baseUrl, "/oauth/userinfo"), { method: "GET", headers: { accept: "application/json", authorization: `Bearer ${accessToken}` }, signal: controller.signal });
+      const text = await response.text();
+      if (!response.ok) throw oauthError(response.status, response.statusText, text);
+      try {
+        return JSON.parse(text) as OAuthUserInfo;
+      } catch {
+        const responseRequestId = requestId(response.headers);
+        throw new OwlVigilError(`owlvigil: invalid OAuth JSON response status=${response.status}${responseRequestId ? ` request_id=${responseRequestId}` : ""}`);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async token(path: string, values: Record<string, string | undefined>, allowEmpty = false): Promise<OAuthTokenResponse> {
     const form = new URLSearchParams();
     for (const [key, value] of Object.entries(values)) if (value !== undefined && value !== "") form.set(key, value);
     const controller = new AbortController();
@@ -275,23 +356,20 @@ export class OAuth2Client {
       clearTimeout(timeout);
     }
     if (!response.ok) {
-      let code = "";
-      let message = response.statusText;
-      try {
-        const error = JSON.parse(text) as { error?: string; error_description?: string };
-        code = error.error ?? "";
-        message = error.error_description ?? message;
-      } catch { /* Do not expose an unparsed response body. */ }
-      throw new OwlVigilApiError(response.status, requestId(response.headers), code, message);
+      throw oauthError(response.status, response.statusText, text);
     }
+    if (!text.trim() && allowEmpty) return {};
     try {
-      return JSON.parse(text) as Record<string, unknown>;
+      return JSON.parse(text) as OAuthTokenResponse;
     } catch {
       const responseRequestId = requestId(response.headers);
       throw new OwlVigilError(`owlvigil: invalid OAuth JSON response status=${response.status}${responseRequestId ? ` request_id=${responseRequestId}` : ""}`);
     }
   }
 }
+
+export interface OAuthTokenResponse { access_token?: string; refresh_token?: string; token_type?: string; expires_in?: number; scope?: string; [key: string]: unknown }
+export interface OAuthUserInfo { sub: string; email?: string; name?: string; picture?: string; [key: string]: unknown }
 
 export interface OwlVigilOptions {
   gatewayKey?: string | CredentialProvider;
@@ -346,9 +424,28 @@ function resolveUrl(baseUrl: string, path: string): URL {
   const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
   return new URL(path.replace(/^\/+/, ""), base);
 }
+function resolveManagementPath(path: string, params: Record<string, string | number> | undefined): string {
+  return path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+    const value = params?.[name];
+    if (value === undefined) throw new OwlVigilError("Missing Management path parameter: " + name);
+    return encodeURIComponent(String(value));
+  });
+}
 function transportError(error: unknown): OwlVigilError {
   const message = error instanceof Error ? error.message : String(error);
   return new OwlVigilError(`owlvigil: transport request failed${message ? `: ${message}` : ""}`);
+}
+function oauthError(status: number, statusText: string, text: string): OwlVigilOAuthError {
+  let errorCode = "";
+  let errorDescription = statusText;
+  let errorUri = "";
+  try {
+    const parsed = JSON.parse(text) as { error?: string; error_description?: string; error_uri?: string };
+    errorCode = parsed.error ?? "";
+    errorDescription = parsed.error_description ?? errorDescription;
+    errorUri = parsed.error_uri ?? "";
+  } catch { /* Do not expose an unparsed response body. */ }
+  return new OwlVigilOAuthError(status, errorCode, errorDescription, errorUri);
 }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function findEventBoundary(value: string): number {

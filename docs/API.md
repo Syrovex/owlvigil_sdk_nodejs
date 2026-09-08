@@ -5,7 +5,7 @@ be strings or refreshable credential-provider functions.
 
 ## Gateway
 
-- `listModels`
+- `listModels` and `getModel`
 - `createChatCompletion` and `createChatCompletionStream`
 - `createResponse` and `createResponseStream`
 - `createEmbeddings`
@@ -19,15 +19,23 @@ Unknown provider fields can be supplied through the extensible request types.
 - `listWorkspaces`
 - `getUsageSummary`
 - `getRequestLog`
+- `openApi`
 
 Use the numeric ID returned by `listWorkspaces`. Management responses unwrap
 the OwlVigil `data` envelope while preserving status, headers, and request ID.
 
+`MANAGEMENT_OPERATIONS` contains the 144 published OpenAPI Management
+operation IDs. `management.openApi(operationId, request)` executes any of them
+with `request.path`, `request.query`, `request.body`, and per-request options.
+The operation catalog is generated from the OwlVigil OpenAPI contract with
+`npm run generate:management`.
+
 `RequestOptions` supports timeout, `AbortSignal`, retry limit, idempotency key,
 workspace ID, and non-reserved headers. HTTP failures throw
 `OwlVigilApiError`; local, protocol, and validation failures throw
-`OwlVigilError`.
+`OwlVigilError`. OAuth endpoint failures throw `OwlVigilOAuthError` with the
+OAuth error code, description, and URI when returned by the server.
 
-`OAuth2Client` supports authorization-code, refresh-token, and client-credential
-flows. `verifyWebhook` verifies the original payload bytes and timestamp before
-business processing.
+`OAuth2Client` supports authorization-code, refresh-token, client-credential,
+revocation, and user-info flows. `verifyWebhook` verifies the original payload
+bytes and timestamp before business processing.

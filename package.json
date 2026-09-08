@@ -21,8 +21,11 @@
   "publishConfig": { "access": "public", "provenance": true },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "check:openapi": "node scripts/check-management-operations.mjs",
+    "generate:management": "node scripts/generate-management-operations.mjs",
+    "generate:management-types": "node scripts/generate-management-types.mjs",
     "test": "npm run build && node --test dist/*.test.js",
-    "check": "npm test && npm pack --dry-run",
+    "check": "npm test && npm run check:openapi && npm pack --dry-run",
     "prepack": "npm run build"
   },
   "engines": { "node": ">=20" },

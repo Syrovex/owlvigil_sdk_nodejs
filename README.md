@@ -47,7 +47,9 @@ console.log(`request_id=${response.meta.requestId}`);
 ```
 
 Use `listModels()` first to discover models available to the current Workspace
-and Gateway Key. Model names are provider-facing names, not internal model IDs.
+and Gateway Key. Use `getModel("your-model-id")` when the model metadata for a
+single model is needed. Model names are provider-facing names, not internal
+model IDs.
 
 ## Run a Management request
 
@@ -78,6 +80,25 @@ if (workspaceId !== undefined) {
 Do not use the Management API Key as a Gateway Key. Management responses
 unwrap the OwlVigil `data` envelope while preserving HTTP status, headers, and
 request ID in `response.meta`.
+
+The SDK also exposes the complete 144-operation OpenAPI Management catalog
+through `client.management.openApi(operationId, request)`. The request accepts
+path parameters, query parameters, a request body, and the same per-request
+options as the convenience methods:
+
+```ts
+const providers = await client.management.openApi("get_gateway_providers", {
+  query: { workspace_id: 7, limit: 20 },
+});
+```
+
+The catalog is generated from the OwlVigil OpenAPI contract. In a checkout that
+also contains the OpenAPI repository, regenerate it with
+`npm run generate:management`.
+
+The generated Management schema types are exported from the package as well.
+Regenerate them with `npm run generate:management-types` when the OpenAPI
+contract changes.
 
 ## Streaming
 
@@ -116,6 +137,9 @@ const token = await client.oauth2.clientCredentials({
   clientSecret: "your-client-secret",
 });
 console.log(token.access_token);
+
+const user = await client.oauth2.userInfo(token.access_token ?? "");
+await client.oauth2.revoke(token.access_token ?? "");
 ```
 
 Keep OAuth client secrets on the server. Do not expose them in browser code or
@@ -163,9 +187,10 @@ let ordinary end users control these URLs.
 ## Supported surface
 
 - Gateway models, Chat Completions, Responses, Embeddings, and Anthropic Messages
+- Gateway model lookup with `listModels` and `getModel`
 - SSE streaming for Chat Completions and Responses
 - Workspace listing, usage summary, and request-log lookup
-- OAuth2 authorization-code, refresh-token, and client-credentials flows
+- OAuth2 authorization-code, refresh-token, client-credentials, revocation, and user-info flows
 - Webhook HMAC verification
 - Typed error handling through `OwlVigilError` and `OwlVigilApiError`
 
@@ -175,9 +200,10 @@ behavior.
 ## Errors
 
 HTTP errors throw `OwlVigilApiError`, which includes the HTTP status, request ID,
-and error code when available. Transport, protocol, validation, and local SDK
-failures throw `OwlVigilError`. This lets callers handle SDK failures through a
-single base class while still distinguishing API responses when needed.
+and error code when available. OAuth errors throw `OwlVigilOAuthError`, which
+includes the OAuth error code, description, and URI. Transport, protocol,
+validation, and local SDK failures throw `OwlVigilError`. All of these errors
+share the `OwlVigilError` base class.
 
 ## Development and verification
 
