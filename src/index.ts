@@ -228,6 +228,7 @@ export interface Workspace { id: number; workspace_id?: number; name: string; sl
 export interface PageInfo { next_cursor?: string; has_more?: boolean }
 export interface WorkspaceList { items: Workspace[]; page_info: PageInfo }
 export interface ListWorkspacesOptions { cursor?: string; limit?: number }
+export type ManagementQuery = Record<string, string | number | boolean | Array<string | number | boolean> | null | undefined>;
 export interface UsageSummary { workspace_id?: number; requests: number; tokens: number; cost: number; current_period?: string }
 export interface RequestLog { request_id: string; model: string; status: string; status_code: number; total_tokens: number; total_cost: number; [key: string]: unknown }
 export interface ManagementOperationRequest {
@@ -289,6 +290,44 @@ export class ManagementClient {
     requireWorkspaceId(workspaceId);
     if (!requestIdValue.trim()) throw new OwlVigilError("requestId is required");
     return this.transport.request<RequestLog>("GET", `/gateway/request-logs/${encodeURIComponent(requestIdValue)}`, undefined, { ...options, workspaceId });
+  }
+
+  // Resource-oriented helpers mirror the Go SDK's common Management use cases.
+  listProviders(query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_gateway_providers", { query, ...requestOptions(options) });
+  }
+  getProvider(providerId: string | number, options?: RequestOptions) {
+    return this.openApi("get_gateway_providers_provider_id", { path: { provider_id: providerId }, ...requestOptions(options) });
+  }
+  createProvider(body: ManagementOperationBody["post_gateway_providers"], options?: RequestOptions) {
+    return this.openApi("post_gateway_providers", { body, ...requestOptions(options) });
+  }
+  updateProvider(providerId: string | number, body: ManagementOperationBody["patch_gateway_providers_provider_id"], options?: RequestOptions) {
+    return this.openApi("patch_gateway_providers_provider_id", { path: { provider_id: providerId }, body, ...requestOptions(options) });
+  }
+  listManagementModels(query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_gateway_models", { query, ...requestOptions(options) });
+  }
+  getManagementModel(modelId: string | number, options?: RequestOptions) {
+    return this.openApi("get_gateway_models_model_id", { path: { model_id: modelId }, ...requestOptions(options) });
+  }
+  listGatewayKeys(query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_gateway_keys", { query, ...requestOptions(options) });
+  }
+  listWorkspaceMembers(workspaceId: string | number, query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_workspaces_workspace_id_members", { path: { workspace_id: workspaceId }, query, ...requestOptions(options) });
+  }
+  createWorkspaceMember(workspaceId: string | number, body: ManagementOperationBody["post_workspaces_workspace_id_members"], options?: RequestOptions) {
+    return this.openApi("post_workspaces_workspace_id_members", { path: { workspace_id: workspaceId }, body, ...requestOptions(options) });
+  }
+  getWorkspace(workspaceId: string | number, options?: RequestOptions) {
+    return this.openApi("get_workspaces_workspace_id", { path: { workspace_id: workspaceId }, ...requestOptions(options) });
+  }
+  updateWorkspace(workspaceId: string | number, body: ManagementOperationBody["patch_workspaces_workspace_id"], options?: RequestOptions) {
+    return this.openApi("patch_workspaces_workspace_id", { path: { workspace_id: workspaceId }, body, ...requestOptions(options) });
+  }
+  getBillingOverview(options?: RequestOptions) {
+    return this.openApi("get_billing_overview", requestOptions(options));
   }
 
   /** Execute any operation in the published OpenAPI Management catalog. */
@@ -439,6 +478,10 @@ export function verifyWebhook(payload: Uint8Array, header: string, secret: strin
 function provider(value: string | CredentialProvider | undefined, env: string): CredentialProvider {
   if (typeof value === "function") return value;
   return () => value ?? process.env[env] ?? "";
+}
+
+function requestOptions(options?: RequestOptions): { options?: RequestOptions } {
+  return options === undefined ? {} : { options };
 }
 
 function requestId(headers: Headers): string { return headers.get("x-request-id") ?? headers.get("request-id") ?? ""; }

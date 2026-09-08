@@ -122,6 +122,22 @@ test("executes operations from the OpenAPI Management catalog", async () => {
   assert.deepEqual(await request?.json(), { name: "Primary", api_key: "upstream-key", type: "openai", workspace_id: 7 });
 });
 
+test("provides resource-oriented Management helpers", async () => {
+  const urls: string[] = [];
+  const client = new OwlVigil({
+    apiKey: "test_api_key",
+    managementBaseUrl: "https://api.example.test/v1",
+    fetch: async (input) => {
+      urls.push(new URL(input instanceof Request ? input.url : input).toString());
+      return new Response(JSON.stringify({ data: { id: 7 } }), { status: 200 });
+    },
+  });
+  await client.management.getProvider(7);
+  await client.management.listWorkspaceMembers(3, { limit: 10 });
+  assert.equal(urls[0], "https://api.example.test/v1/gateway/providers/7");
+  assert.equal(urls[1], "https://api.example.test/v1/workspaces/3/members?limit=10");
+});
+
 test("rejects attempts to override authentication header", async () => {
   const client = new OwlVigil({ gatewayKey: "test_gateway_key", fetch: async () => new Response("{}") });
   await assert.rejects(
