@@ -138,6 +138,17 @@ test("provides resource-oriented Management helpers", async () => {
   assert.equal(urls[1], "https://api.example.test/v1/workspaces/3/members?limit=10");
 });
 
+test("exposes a generated convenience method for every catalog operation", async () => {
+  const client = new OwlVigil({
+    apiKey: "test_api_key",
+    managementBaseUrl: "https://api.example.test/v1",
+    fetch: async () => new Response(JSON.stringify({ data: { id: 7 } }), { status: 200 }),
+  });
+  assert.equal(typeof client.management.getGatewayProvidersProviderId, "function");
+  const response = await client.management.getGatewayProvidersProviderId({ path: { provider_id: 7 } });
+  assert.equal(response.data.id, 7);
+});
+
 test("rejects attempts to override authentication header", async () => {
   const client = new OwlVigil({ gatewayKey: "test_gateway_key", fetch: async () => new Response("{}") });
   await assert.rejects(

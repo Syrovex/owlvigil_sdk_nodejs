@@ -113,6 +113,9 @@ The generated Management schema types are exported from the package as well.
 Regenerate them with `npm run generate:management-types` when the OpenAPI
 contract changes.
 
+To regenerate the complete checked-in Management surface in one step, run
+`npm run generate:management-all`.
+
 ## Streaming
 
 Chat Completions and Responses provide cancellable async generators of parsed

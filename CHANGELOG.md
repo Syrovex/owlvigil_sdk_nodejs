@@ -14,6 +14,8 @@ minor releases may include announced breaking changes.
   revocation, and user-info flows.
 - A generated, checked-in Management OpenAPI catalog with 144 operations and
   generated TypeScript schema types.
+- Generated camelCase Management convenience methods for all 144 catalog
+  operations, plus resource-oriented aliases for common workflows.
 - Consistent SDK error handling for API, OAuth, transport, timeout, and
   malformed-response failures.
 
