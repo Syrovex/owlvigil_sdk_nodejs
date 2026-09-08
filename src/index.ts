@@ -99,7 +99,8 @@ class Transport {
           },
         };
       } catch (error) {
-        if (error instanceof OwlVigilError || options.signal?.aborted || attempt >= maxRetries || !this.retryable(method, -1, options)) throw error;
+        if (error instanceof OwlVigilError || options.signal?.aborted) throw error;
+        if (attempt >= maxRetries || !this.retryable(method, -1, options)) throw transportError(error);
         await this.delay(attempt, null, signal);
       } finally {
         clearTimeout(timeout);
@@ -236,7 +237,7 @@ export class OAuth2Client {
   constructor(private readonly baseUrl: string, private readonly fetchImpl: typeof globalThis.fetch, private readonly timeoutMs: number) {}
 
   authorizationUrl(options: { clientId: string; redirectUri: string; scopes?: string[]; state?: string; codeChallenge?: string; codeChallengeMethod?: string; parameters?: Record<string, string> }): URL {
-    const url = new URL("/oauth/authorize", this.baseUrl);
+    const url = resolveUrl(this.baseUrl, "oauth/authorize");
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", options.clientId);
     url.searchParams.set("redirect_uri", options.redirectUri);
@@ -268,7 +269,7 @@ export class OAuth2Client {
     let response: Response;
     let text: string;
     try {
-      response = await this.fetchImpl(new URL(path, this.baseUrl), { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: form, signal: controller.signal });
+      response = await this.fetchImpl(resolveUrl(this.baseUrl, path), { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body: form, signal: controller.signal });
       text = await response.text();
     } finally {
       clearTimeout(timeout);
@@ -283,7 +284,12 @@ export class OAuth2Client {
       } catch { /* Do not expose an unparsed response body. */ }
       throw new OwlVigilApiError(response.status, requestId(response.headers), code, message);
     }
-    return JSON.parse(text) as Record<string, unknown>;
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      const responseRequestId = requestId(response.headers);
+      throw new OwlVigilError(`owlvigil: invalid OAuth JSON response status=${response.status}${responseRequestId ? ` request_id=${responseRequestId}` : ""}`);
+    }
   }
 }
 
@@ -336,6 +342,14 @@ function provider(value: string | CredentialProvider | undefined, env: string): 
 }
 
 function requestId(headers: Headers): string { return headers.get("x-request-id") ?? headers.get("request-id") ?? ""; }
+function resolveUrl(baseUrl: string, path: string): URL {
+  const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return new URL(path.replace(/^\/+/, ""), base);
+}
+function transportError(error: unknown): OwlVigilError {
+  const message = error instanceof Error ? error.message : String(error);
+  return new OwlVigilError(`owlvigil: transport request failed${message ? `: ${message}` : ""}`);
+}
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function findEventBoundary(value: string): number {
   const matches = [value.indexOf("\n\n"), value.indexOf("\r\n\r\n"), value.indexOf("\r\r")].filter((index) => index >= 0);

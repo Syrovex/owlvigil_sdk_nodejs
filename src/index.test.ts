@@ -65,6 +65,46 @@ test("rejects attempts to override authentication header", async () => {
   );
 });
 
+test("normalizes exhausted transport failures", async () => {
+  const client = new OwlVigil({
+    gatewayKey: "test_gateway_key",
+    maxRetries: 0,
+    fetch: async () => { throw new Error("DNS unavailable"); },
+  });
+  await assert.rejects(client.gateway.listModels(), (error: unknown) => {
+    assert.ok(error instanceof OwlVigilError);
+    assert.match(error.message, /transport request failed: DNS unavailable/);
+    return true;
+  });
+});
+
+test("preserves custom OAuth base paths", async () => {
+  const urls: string[] = [];
+  const client = new OwlVigil({
+    oauthBaseUrl: "https://proxy.example.test/owlvigil",
+    fetch: async (input) => {
+      urls.push(new URL(input instanceof Request ? input.url : input).toString());
+      return new Response(JSON.stringify({ access_token: "token" }), { status: 200 });
+    },
+  });
+
+  assert.equal(client.oauth2.authorizationUrl({ clientId: "client", redirectUri: "https://app.example.test/callback" }).pathname, "/owlvigil/oauth/authorize");
+  await client.oauth2.clientCredentials({ clientId: "client", clientSecret: "secret" });
+  assert.equal(urls[0], "https://proxy.example.test/owlvigil/oauth/token");
+});
+
+test("wraps malformed successful OAuth responses", async () => {
+  const client = new OwlVigil({
+    oauthBaseUrl: "https://oauth.example.test",
+    fetch: async () => new Response("", { status: 200, headers: { "x-request-id": "oauth_req" } }),
+  });
+  await assert.rejects(client.oauth2.clientCredentials({ clientId: "client", clientSecret: "secret" }), (error: unknown) => {
+    assert.ok(error instanceof OwlVigilError);
+    assert.match(error.message, /invalid OAuth JSON response status=200 request_id=oauth_req/);
+    return true;
+  });
+});
+
 test("retains SSE event id until a new id is received", async () => {
   const payload = new TextEncoder().encode("id: event-1\ndata: one\n\ndata: two\n\n");
   const client = new OwlVigil({

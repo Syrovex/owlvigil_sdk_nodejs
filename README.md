@@ -1,61 +1,185 @@
 # OwlVigil Node.js SDK
 
-Dependency-free-at-runtime, ESM-first TypeScript client for the OwlVigil AI
-Gateway, Management API, OAuth2, and webhook verification. Requires Node.js
-20+. Version 0.1.x is a preview with a focused Management API surface.
+[![CI](https://github.com/Syrovex/owlvigil_sdk_nodejs/actions/workflows/ci.yml/badge.svg)](https://github.com/Syrovex/owlvigil_sdk_nodejs/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@owlvigil/sdk)](https://www.npmjs.com/package/@owlvigil/sdk)
+[![License: MIT](https://img.shields.io/github/license/Syrovex/owlvigil_sdk_nodejs)](LICENSE)
 
-## Installation
+Node.js 20+ SDK for the OwlVigil Gateway, Management API, OAuth2 flows, and
+webhook signature verification. The SDK is written in TypeScript, published as
+an ESM package, and has no runtime dependencies.
 
-After version 0.2.0 is published:
+Gateway model calls use `https://gateway.owlvigil.com` with a Gateway Key.
+Management calls use `https://api.owlvigil.com/v1` with a scoped Management API
+Key. These credentials are separate and are not interchangeable.
+
+## Install
 
 ```bash
 npm install @owlvigil/sdk
 ```
 
-Until then, install from a trusted source checkout with `npm install`.
+The package requires Node.js 20 or later and uses the built-in Fetch API.
 
-## Quick start
+## Run a Gateway request
 
-Set `OWLVIGIL_GATEWAY_KEY` and pass a provider-facing model name:
+Set the Gateway Key in the server environment:
+
+```bash
+export OWLVIGIL_GATEWAY_KEY='your-gateway-key'
+```
+
+Create one client and reuse it across requests:
 
 ```ts
 import { OwlVigil } from "@owlvigil/sdk";
 
 const client = new OwlVigil();
+const models = await client.gateway.listModels();
+console.log(models.data.data.map((model) => model.id));
+
 const response = await client.gateway.createChatCompletion({
-  model: "deepseek-v4-flash",
-  messages: [{ role: "user", content: "Hello" }],
+  model: "your-model-id",
+  messages: [{ role: "user", content: "Say hello from OwlVigil." }],
 });
+
 console.log(response.data.choices[0]?.message?.content);
+console.log(`request_id=${response.meta.requestId}`);
 ```
 
-For streaming, consume the returned async generator. Breaking out of the loop
-cancels and releases the response body.
+Use `listModels()` first to discover models available to the current Workspace
+and Gateway Key. Model names are provider-facing names, not internal model IDs.
+
+## Run a Management request
+
+Set a separate Management API Key:
+
+```bash
+export OWLVIGIL_API_KEY='your-management-api-key'
+```
+
+List Workspaces before calling workspace-scoped methods:
 
 ```ts
-for await (const event of client.gateway.createChatCompletionStream({
-  model: "deepseek-v4-flash",
-  messages: [{ role: "user", content: "Hello" }],
-})) {
-  console.log(event.data);
+const workspaces = await client.management.listWorkspaces();
+
+for (const workspace of workspaces.data.items) {
+  console.log(`${workspace.id} ${workspace.name}`);
+}
+
+const workspaceId = workspaces.data.items[0]?.workspace_id
+  ?? workspaces.data.items[0]?.id;
+
+if (workspaceId !== undefined) {
+  const usage = await client.management.getUsageSummary(workspaceId);
+  console.log(`requests=${usage.data.requests}`);
 }
 ```
 
-Set `OWLVIGIL_API_KEY` only for Management calls. List workspaces first, then
-pass the returned numeric workspace ID to workspace-scoped methods. Request
-options support timeout, cancellation, retry limits, idempotency keys, and safe
-custom headers. Retries apply only to idempotent requests or calls with an
-idempotency key.
+Do not use the Management API Key as a Gateway Key. Management responses
+unwrap the OwlVigil `data` envelope while preserving HTTP status, headers, and
+request ID in `response.meta`.
 
-## Supported preview surface
+## Streaming
+
+Chat Completions and Responses provide cancellable async generators of parsed
+SSE events:
+
+```ts
+for await (const event of client.gateway.createChatCompletionStream({
+  model: "your-model-id",
+  messages: [{ role: "user", content: "Stream a short greeting." }],
+})) {
+  process.stdout.write(event.data);
+}
+```
+
+Breaking out of the loop cancels the reader and releases the response body.
+
+## OAuth2
+
+The client exposes authorization-code, refresh-token, and client-credentials
+flows. `oauthBaseUrl` defaults to `https://open.owlvigil.com` and may include a
+path prefix when using a reverse proxy.
+
+```ts
+const authorizationUrl = client.oauth2.authorizationUrl({
+  clientId: "your-client-id",
+  redirectUri: "https://your-app.example.com/oauth/callback",
+  scopes: ["openid", "profile"],
+  state: "csrf-state",
+});
+
+console.log(authorizationUrl.toString());
+
+const token = await client.oauth2.clientCredentials({
+  clientId: "your-client-id",
+  clientSecret: "your-client-secret",
+});
+console.log(token.access_token);
+```
+
+Keep OAuth client secrets on the server. Do not expose them in browser code or
+commit them to source control.
+
+## Webhook verification
+
+Verify the original request body bytes before parsing or processing the event:
+
+```ts
+import { verifyWebhook } from "@owlvigil/sdk";
+
+verifyWebhook(rawBodyBytes, request.headers.get("owlvigil-signature") ?? "", webhookSecret);
+```
+
+The signature header must contain the timestamp and HMAC signature, for example
+`t=1700000000,v1=...`. The default timestamp tolerance is five minutes.
+
+## Configuration
+
+```ts
+const client = new OwlVigil({
+  gatewayKey: () => secretManager.get("owlvigil/gateway-key"),
+  apiKey: () => secretManager.get("owlvigil/api-key"),
+  gatewayBaseUrl: "https://gateway.example.com",
+  managementBaseUrl: "https://api.example.com/v1",
+  oauthBaseUrl: "https://auth.example.com/owlvigil",
+  timeoutMs: 30_000,
+  maxRetries: 1,
+});
+```
+
+The defaults are the production endpoints, a 60-second timeout, two retries,
+and an `owlvigil-node/<SDK version>` User-Agent. String credentials, credential
+provider functions, and the `OWLVIGIL_GATEWAY_KEY` / `OWLVIGIL_API_KEY`
+environment variables are supported.
+
+Per-request `RequestOptions` support timeout, `AbortSignal`, retry limits,
+idempotency keys, Workspace IDs, and safe custom headers. Retries apply only to
+idempotent requests or requests with an idempotency key.
+
+Use custom base URLs for staging, local tests, or private deployments. Do not
+let ordinary end users control these URLs.
+
+## Supported surface
 
 - Gateway models, Chat Completions, Responses, Embeddings, and Anthropic Messages
 - SSE streaming for Chat Completions and Responses
 - Workspace listing, usage summary, and request-log lookup
-- OAuth2 authorization and token flows
+- OAuth2 authorization-code, refresh-token, and client-credentials flows
 - Webhook HMAC verification
+- Typed error handling through `OwlVigilError` and `OwlVigilApiError`
 
-## Development
+See the [API overview](docs/API.md) for the public method list and response
+behavior.
+
+## Errors
+
+HTTP errors throw `OwlVigilApiError`, which includes the HTTP status, request ID,
+and error code when available. Transport, protocol, validation, and local SDK
+failures throw `OwlVigilError`. This lets callers handle SDK failures through a
+single base class while still distinguishing API responses when needed.
+
+## Development and verification
 
 ```bash
 npm ci
@@ -63,6 +187,24 @@ npm test
 npm pack --dry-run
 ```
 
-Live tests are opt-in and read-only. See the [API overview](docs/API.md), [CONTRIBUTING.md](CONTRIBUTING.md),
-[SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and
-[CHANGELOG.md](CHANGELOG.md). Licensed under the [MIT License](LICENSE).
+`npm test` compiles the TypeScript source and runs the Node.js test suite. Live
+Gateway and Management tests are opt-in and read-only:
+
+```bash
+OWLVIGIL_LIVE_TEST=1 \
+OWLVIGIL_GATEWAY_KEY='replace-with-gateway-key' \
+OWLVIGIL_API_KEY='replace-with-management-key' \
+npm test
+```
+
+The SDK is HTTP-only. It does not import OwlVigil Dashboard or backend code and
+does not connect directly to databases, queues, or provider infrastructure.
+
+## Community and security
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Report vulnerabilities using [SECURITY.md](SECURITY.md).
+- See [SUPPORT.md](SUPPORT.md) for usage questions and bug reports.
+- Releases and compatibility changes are documented in [CHANGELOG.md](CHANGELOG.md).
+
+Licensed under the [MIT License](LICENSE).
