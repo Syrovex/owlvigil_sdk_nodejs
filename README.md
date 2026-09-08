@@ -216,6 +216,16 @@ npm pack --dry-run
 `npm test` compiles the TypeScript source and runs the Node.js test suite. Live
 Gateway and Management tests are opt-in and read-only:
 
+Runnable repository examples are available in [`examples/`](./examples):
+
+```bash
+OWLVIGIL_GATEWAY_KEY=... node examples/quickstart.mjs
+OWLVIGIL_API_KEY=... node examples/management-openapi.mjs
+```
+
+Examples require real credentials and are syntax-checked in CI; they are not
+executed as live tests in CI.
+
 ```bash
 OWLVIGIL_LIVE_TEST=1 \
 OWLVIGIL_GATEWAY_KEY='replace-with-gateway-key' \

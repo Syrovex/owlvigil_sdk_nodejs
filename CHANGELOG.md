@@ -6,6 +6,22 @@ minor releases may include announced breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- Typed Gateway helpers for models, chat completions, Responses, embeddings,
+  Anthropic Messages, and Server-Sent Events.
+- OAuth 2.0 authorization-code, refresh-token, client-credentials, token
+  revocation, and user-info flows.
+- A generated, checked-in Management OpenAPI catalog with 144 operations and
+  generated TypeScript schema types.
+- Consistent SDK error handling for API, OAuth, transport, timeout, and
+  malformed-response failures.
+
+### Changed
+
+- Added Node.js 20/22/24 CI coverage, package smoke checks, and a public
+  Management contract snapshot so CI does not depend on a private API repo.
+
 ## [0.2.0] - 2026-08-28
 
 ### Added
