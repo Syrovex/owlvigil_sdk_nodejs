@@ -21,11 +21,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: Syrovex/owlvigil_api
-          ref: dev
-          path: owlvigil_api
       - name: Validate release source
         shell: bash
         run: |
@@ -46,8 +41,6 @@ jobs:
       - run: npm install --global npm@11.5.2
       - run: npm ci
       - run: npm run check
-        env:
-          OWLVIGIL_OPENAPI_SPEC: ${{ github.workspace }}/owlvigil_api/api/swagger.json
       - name: Verify tag matches package version
         run: test "${GITHUB_REF_NAME#v}" = "$(node -p 'require("./package.json").version')"
       - run: npm publish --access public --provenance

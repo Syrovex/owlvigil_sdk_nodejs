@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-const specPath = path.resolve(process.env.OWLVIGIL_OPENAPI_SPEC ?? process.argv[2] ?? "../../owlvigil_openapi/api/swagger.json");
+const requestedSpecPath = path.resolve(process.env.OWLVIGIL_OPENAPI_SPEC ?? process.argv[2] ?? "../../owlvigil_openapi/api/swagger.json");
+const specPath = fs.existsSync(requestedSpecPath) ? requestedSpecPath : path.resolve("contracts/management-contract.json");
 const sourcePath = path.resolve(process.argv[3] ?? "src/management-operations.ts");
 const typesSourcePath = path.resolve(process.argv[4] ?? "src/management-types.ts");
 const spec = JSON.parse(fs.readFileSync(specPath, "utf8"));
@@ -11,11 +12,15 @@ const typesSource = fs.readFileSync(typesSourcePath, "utf8");
 const expected = new Map();
 const methods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
-for (const [sourceRoute, operations] of Object.entries(spec.paths ?? {})) {
-  for (const [method, operation] of Object.entries(operations)) {
-    const upperMethod = method.toUpperCase();
-    if (!methods.has(upperMethod) || typeof operation.operationId !== "string") continue;
-    expected.set(operation.operationId, { method: upperMethod, path: sourceRoute.replace(/^\/v1/, "") || "/" });
+if (spec.operations) {
+  for (const [operationId, definition] of Object.entries(spec.operations)) expected.set(operationId, definition);
+} else {
+  for (const [sourceRoute, operations] of Object.entries(spec.paths ?? {})) {
+    for (const [method, operation] of Object.entries(operations)) {
+      const upperMethod = method.toUpperCase();
+      if (!methods.has(upperMethod) || typeof operation.operationId !== "string") continue;
+      expected.set(operation.operationId, { method: upperMethod, path: sourceRoute.replace(/^\/v1/, "") || "/" });
+    }
   }
 }
 
@@ -34,7 +39,7 @@ if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-const expectedSchemaCount = Object.keys(spec.definitions ?? {}).length;
+const expectedSchemaCount = spec.schemaCount ?? Object.keys(spec.definitions ?? {}).length;
 const schemaSection = typesSource.split("export interface ManagementOperationData", 1)[0];
 const actualSchemaCount = [...schemaSection.matchAll(/^export (?:interface|type) /gm)].length;
 if (actualSchemaCount !== expectedSchemaCount) {
