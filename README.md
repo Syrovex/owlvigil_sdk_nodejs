@@ -193,6 +193,11 @@ and an `owlvigil-node/<SDK version>` User-Agent. String credentials, credential
 provider functions, and the `OWLVIGIL_GATEWAY_KEY` / `OWLVIGIL_API_KEY`
 environment variables are supported.
 
+Set `environment: "staging"` or `environment: "local"` to use the same service
+routing convention as the Go SDK. `OWLVIGIL_ENV` is used when the option is
+omitted. Explicit base URLs remain supported for reverse proxies and test
+servers.
+
 Per-request `RequestOptions` support timeout, `AbortSignal`, retry limits,
 idempotency keys, Workspace IDs, and safe custom headers. Retries apply only to
 idempotent requests or requests with an idempotency key.

@@ -39,6 +39,10 @@ workspace ID, and non-reserved headers. HTTP failures throw
 `OwlVigilError`. OAuth endpoint failures throw `OwlVigilOAuthError` with the
 OAuth error code, description, and URI when returned by the server.
 
+`OwlVigil` accepts `environment: "production" | "staging" | "local"` and also
+reads `OWLVIGIL_ENV`. Explicit service base URLs take precedence for custom
+proxies and test servers.
+
 `OAuth2Client` supports authorization-code, refresh-token, client-credential,
 revocation, and user-info flows. `verifyWebhook` verifies the original payload
 bytes and timestamp before business processing.

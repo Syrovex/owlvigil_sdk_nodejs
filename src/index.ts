@@ -514,10 +514,18 @@ export interface OwlVigilOptions {
   gatewayBaseUrl?: string;
   managementBaseUrl?: string;
   oauthBaseUrl?: string;
+  environment?: OwlVigilEnvironment;
   timeoutMs?: number;
   maxRetries?: number;
   fetch?: typeof globalThis.fetch;
 }
+
+export type OwlVigilEnvironment = "production" | "staging" | "local";
+export const OwlVigilEnvironment = {
+  Production: "production",
+  Staging: "staging",
+  Local: "local",
+} as const satisfies Record<string, OwlVigilEnvironment>;
 
 export class OwlVigil {
   readonly gateway: GatewayClient;
@@ -526,10 +534,11 @@ export class OwlVigil {
   constructor(options: OwlVigilOptions = {}) {
     const fetchImpl = options.fetch ?? globalThis.fetch;
     if (!fetchImpl) throw new OwlVigilError("A Fetch API implementation is required");
+    const environment = resolveEnvironment(options.environment ?? process.env.OWLVIGIL_ENV ?? "production");
     const common = { timeoutMs: options.timeoutMs ?? 60_000, maxRetries: options.maxRetries ?? 2, fetch: fetchImpl };
-    this.gateway = new GatewayClient(new Transport({ ...common, baseUrl: options.gatewayBaseUrl ?? "https://gateway.owlvigil.com", credential: provider(options.gatewayKey, "OWLVIGIL_GATEWAY_KEY"), unwrapEnvelope: false }));
-    this.management = new ManagementClient(new Transport({ ...common, baseUrl: options.managementBaseUrl ?? "https://api.owlvigil.com/v1", credential: provider(options.apiKey, "OWLVIGIL_API_KEY"), unwrapEnvelope: true }));
-    this.oauth2 = new OAuth2Client(options.oauthBaseUrl ?? "https://open.owlvigil.com", fetchImpl, common.timeoutMs);
+    this.gateway = new GatewayClient(new Transport({ ...common, baseUrl: resolveEnvironmentUrl(options.gatewayBaseUrl ?? "https://gateway.owlvigil.com", environment), credential: provider(options.gatewayKey, "OWLVIGIL_GATEWAY_KEY"), unwrapEnvelope: false }));
+    this.management = new ManagementClient(new Transport({ ...common, baseUrl: resolveEnvironmentUrl(options.managementBaseUrl ?? "https://api.owlvigil.com/v1", environment), credential: provider(options.apiKey, "OWLVIGIL_API_KEY"), unwrapEnvelope: true }));
+    this.oauth2 = new OAuth2Client(resolveEnvironmentUrl(options.oauthBaseUrl ?? "https://open.owlvigil.com", environment), fetchImpl, common.timeoutMs);
   }
 }
 
@@ -554,6 +563,25 @@ export function verifyWebhook(payload: Uint8Array, header: string, secret: strin
 function provider(value: string | CredentialProvider | undefined, env: string): CredentialProvider {
   if (typeof value === "function") return value;
   return () => value ?? process.env[env] ?? "";
+}
+
+function resolveEnvironment(value: string): OwlVigilEnvironment {
+  if (value === "production" || value === "staging" || value === "local") return value;
+  throw new OwlVigilError(`Unsupported OwlVigil environment: ${value}`);
+}
+
+function resolveEnvironmentUrl(baseUrl: string, environment: OwlVigilEnvironment): string {
+  if (environment === "production") return baseUrl;
+  const url = new URL(baseUrl);
+  if (environment === "staging") {
+    if (url.hostname === "gateway.owlvigil.com") url.hostname = "staginggateway.owlvigil.com";
+    else if (url.hostname === "api.owlvigil.com" || url.hostname === "open.owlvigil.com") url.hostname = "stagingapi.owlvigil.com";
+    return url.toString().replace(/\/$/, "");
+  }
+  if (url.hostname === "gateway.owlvigil.com" || url.hostname === "staginggateway.owlvigil.com") return "http://localhost:8080";
+  if (url.pathname.startsWith("/v1") || url.hostname === "api.owlvigil.com") return "http://localhost:8081/v1";
+  if (url.hostname === "open.owlvigil.com" || url.hostname === "stagingapi.owlvigil.com") return "http://localhost:8081";
+  return "http://localhost:8080";
 }
 
 function requestOptions(options?: RequestOptions): { options?: RequestOptions } {

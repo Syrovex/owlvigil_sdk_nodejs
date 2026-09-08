@@ -30,6 +30,21 @@ test("lists models with gateway authentication", async () => {
   assert.equal(requests[0]?.headers.get("authorization"), "Bearer test_gateway_key");
 });
 
+test("maps Go-compatible environments to service endpoints", async () => {
+  const urls: string[] = [];
+  const client = new OwlVigil({
+    environment: "staging",
+    gatewayKey: "test_gateway_key",
+    fetch: async (input) => {
+      urls.push(new URL(input instanceof Request ? input.url : input).toString());
+      return new Response(JSON.stringify({ object: "list", data: [] }), { status: 200 });
+    },
+  });
+  await client.gateway.listModels();
+  assert.equal(urls[0], "https://staginggateway.owlvigil.com/v1/models");
+  assert.throws(() => new OwlVigil({ environment: "preview" as never }), /Unsupported OwlVigil environment/);
+});
+
 test("gets a typed Gateway model", async () => {
   const client = new OwlVigil({
     gatewayKey: "test_gateway_key",
