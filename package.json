@@ -24,6 +24,7 @@
     "check:openapi": "node scripts/check-management-operations.mjs",
     "generate:management": "node scripts/generate-management-operations.mjs",
     "generate:management-types": "node scripts/generate-management-types.mjs",
+    "generate:management-methods": "node scripts/generate-management-methods.mjs",
     "test": "npm run build && node --test dist/*.test.js",
     "check:examples": "node --check examples/quickstart.mjs && node --check examples/management-openapi.mjs",
     "check": "npm test && npm run check:openapi && npm run check:examples && npm pack --dry-run",

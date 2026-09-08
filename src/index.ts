@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { MANAGEMENT_OPERATIONS, type ManagementOperationId } from "./management-operations.js";
+import { GeneratedManagementMethods } from "./management-methods.js";
 import type { ManagementOperationBody, ManagementOperationData } from "./management-types.js";
 
 export { MANAGEMENT_OPERATIONS } from "./management-operations.js";
@@ -253,8 +254,8 @@ export class GatewayClient {
   createAnthropicMessage(request: AnthropicMessageRequest, options?: RequestOptions) { return this.transport.request<AnthropicMessageResponse>("POST", "/anthropic/v1/messages", request, options); }
 }
 
-export class ManagementClient {
-  constructor(private readonly transport: Transport) {}
+export class ManagementClient extends GeneratedManagementMethods {
+  constructor(private readonly transport: Transport) { super(); }
   async listWorkspaces(params: ListWorkspacesOptions = {}, options?: RequestOptions): Promise<ApiResponse<WorkspaceList>> {
     const limit = params.limit ?? 50;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new OwlVigilError("limit must be an integer between 1 and 100");

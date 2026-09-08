@@ -6,9 +6,11 @@ const requestedSpecPath = path.resolve(process.env.OWLVIGIL_OPENAPI_SPEC ?? proc
 const specPath = fs.existsSync(requestedSpecPath) ? requestedSpecPath : path.resolve("contracts/management-contract.json");
 const sourcePath = path.resolve(process.argv[3] ?? "src/management-operations.ts");
 const typesSourcePath = path.resolve(process.argv[4] ?? "src/management-types.ts");
+const methodsSourcePath = path.resolve(process.argv[5] ?? "src/management-methods.ts");
 const spec = JSON.parse(fs.readFileSync(specPath, "utf8"));
 const source = fs.readFileSync(sourcePath, "utf8");
 const typesSource = fs.readFileSync(typesSourcePath, "utf8");
+const methodsSource = fs.readFileSync(methodsSourcePath, "utf8");
 const expected = new Map();
 const methods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
@@ -44,6 +46,13 @@ const schemaSection = typesSource.split("export interface ManagementOperationDat
 const actualSchemaCount = [...schemaSection.matchAll(/^export (?:interface|type) /gm)].length;
 if (actualSchemaCount !== expectedSchemaCount) {
   console.error(`schema count mismatch: got ${actualSchemaCount}, want ${expectedSchemaCount}`);
+  process.exit(1);
+}
+const generatedMethodIds = [...methodsSource.matchAll(/return this\.openApi\("([^"]+)"/g)].map((match) => match[1]);
+const expectedOperationIds = [...expected.keys()].sort();
+const actualMethodIds = [...generatedMethodIds].sort();
+if (generatedMethodIds.length !== expectedOperationIds.length || actualMethodIds.some((operationId, index) => operationId !== expectedOperationIds[index])) {
+  console.error(`management method coverage mismatch: got ${generatedMethodIds.length} methods, want ${expectedOperationIds.length}`);
   process.exit(1);
 }
 console.log(`OpenAPI Management catalog aligned: ${actual.size} operations, ${actualSchemaCount} schemas`);
