@@ -329,6 +329,81 @@ export class ManagementClient {
   getBillingOverview(options?: RequestOptions) {
     return this.openApi("get_billing_overview", requestOptions(options));
   }
+  createGatewayKey(body: ManagementOperationBody["post_gateway_keys"], options?: RequestOptions) {
+    return this.openApi("post_gateway_keys", { body, ...requestOptions(options) });
+  }
+  getGatewayKey(keyId: string | number, options?: RequestOptions) {
+    return this.openApi("get_gateway_keys_key_id", { path: { key_id: keyId }, ...requestOptions(options) });
+  }
+  updateGatewayKey(keyId: string | number, body: ManagementOperationBody["patch_gateway_keys_key_id"], options?: RequestOptions) {
+    return this.openApi("patch_gateway_keys_key_id", { path: { key_id: keyId }, body, ...requestOptions(options) });
+  }
+  deleteGatewayKey(keyId: string | number, options?: RequestOptions) {
+    return this.openApi("delete_gateway_keys_key_id", { path: { key_id: keyId }, ...requestOptions(options) });
+  }
+  enableGatewayKey(keyId: string | number, options?: RequestOptions) {
+    return this.openApi("post_gateway_keys_key_id_enable", { path: { key_id: keyId }, ...requestOptions(options) });
+  }
+  disableGatewayKey(keyId: string | number, options?: RequestOptions) {
+    return this.openApi("post_gateway_keys_key_id_disable", { path: { key_id: keyId }, ...requestOptions(options) });
+  }
+  rotateGatewayKey(keyId: string | number, options?: RequestOptions) {
+    return this.openApi("post_gateway_keys_key_id_rotate", { path: { key_id: keyId }, ...requestOptions(options) });
+  }
+  listWebhookEndpoints(query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_webhook-endpoints", { query, ...requestOptions(options) });
+  }
+  createWebhookEndpoint(body: ManagementOperationBody["post_webhook-endpoints"], options?: RequestOptions) {
+    return this.openApi("post_webhook-endpoints", { body, ...requestOptions(options) });
+  }
+  getWebhookEndpoint(endpointId: string | number, options?: RequestOptions) {
+    return this.openApi("get_webhook-endpoints_endpoint_id", { path: { endpoint_id: endpointId }, ...requestOptions(options) });
+  }
+  updateWebhookEndpoint(endpointId: string | number, body: ManagementOperationBody["patch_webhook-endpoints_endpoint_id"], options?: RequestOptions) {
+    return this.openApi("patch_webhook-endpoints_endpoint_id", { path: { endpoint_id: endpointId }, body, ...requestOptions(options) });
+  }
+  deleteWebhookEndpoint(endpointId: string | number, options?: RequestOptions) {
+    return this.openApi("delete_webhook-endpoints_endpoint_id", { path: { endpoint_id: endpointId }, ...requestOptions(options) });
+  }
+  enableWebhookEndpoint(endpointId: string | number, options?: RequestOptions) {
+    return this.openApi("post_webhook-endpoints_endpoint_id_enable", { path: { endpoint_id: endpointId }, ...requestOptions(options) });
+  }
+  disableWebhookEndpoint(endpointId: string | number, options?: RequestOptions) {
+    return this.openApi("post_webhook-endpoints_endpoint_id_disable", { path: { endpoint_id: endpointId }, ...requestOptions(options) });
+  }
+  rotateWebhookSecret(endpointId: string | number, options?: RequestOptions) {
+    return this.openApi("post_webhook-endpoints_endpoint_id_rotate-secret", { path: { endpoint_id: endpointId }, ...requestOptions(options) });
+  }
+  listWorkspaceRoles(workspaceId: string | number, query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_workspaces_workspace_id_roles", { path: { workspace_id: workspaceId }, query, ...requestOptions(options) });
+  }
+  createWorkspaceRole(workspaceId: string | number, body: ManagementOperationBody["post_workspaces_workspace_id_roles"], options?: RequestOptions) {
+    return this.openApi("post_workspaces_workspace_id_roles", { path: { workspace_id: workspaceId }, body, ...requestOptions(options) });
+  }
+  getWorkspaceRole(workspaceId: string | number, roleId: string | number, options?: RequestOptions) {
+    return this.openApi("get_workspaces_workspace_id_roles_role_id", { path: { workspace_id: workspaceId, role_id: roleId }, ...requestOptions(options) });
+  }
+  updateWorkspaceRole(workspaceId: string | number, roleId: string | number, body: ManagementOperationBody["patch_workspaces_workspace_id_roles_role_id"], options?: RequestOptions) {
+    return this.openApi("patch_workspaces_workspace_id_roles_role_id", { path: { workspace_id: workspaceId, role_id: roleId }, body, ...requestOptions(options) });
+  }
+  deleteWorkspaceRole(workspaceId: string | number, roleId: string | number, options?: RequestOptions) {
+    return this.openApi("delete_workspaces_workspace_id_roles_role_id", { path: { workspace_id: workspaceId, role_id: roleId }, ...requestOptions(options) });
+  }
+  listWorkspaceTeams(workspaceId: string | number, query: ManagementQuery = {}, options?: RequestOptions) {
+    return this.openApi("get_workspaces_workspace_id_teams", { path: { workspace_id: workspaceId }, query, ...requestOptions(options) });
+  }
+  createWorkspaceTeam(workspaceId: string | number, body: ManagementOperationBody["post_workspaces_workspace_id_teams"], options?: RequestOptions) {
+    return this.openApi("post_workspaces_workspace_id_teams", { path: { workspace_id: workspaceId }, body, ...requestOptions(options) });
+  }
+  getSubscription(options?: RequestOptions) {
+    return this.openApi("get_billing_subscription", requestOptions(options));
+  }
+  cancelSubscription(options?: RequestOptions) {
+    return this.openApi("post_billing_subscription_cancel", requestOptions(options));
+  }
+  reactivateSubscription(options?: RequestOptions) {
+    return this.openApi("post_billing_subscription_reactivate", requestOptions(options));
+  }
 
   /** Execute any operation in the published OpenAPI Management catalog. */
   openApi<K extends ManagementOperationId>(operationId: K, request: ManagementOperationRequest & { body?: ManagementOperationBody[K] } = {}): Promise<ApiResponse<ManagementOperationData[K]>> {
