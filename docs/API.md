@@ -20,6 +20,9 @@ Unknown provider fields can be supplied through the extensible request types.
 - `getUsageSummary`
 - `getRequestLog`
 - `openApi`
+- Generated camelCase methods for all 144 OpenAPI operations
+- Resource-oriented aliases for common workspace, provider, key, webhook,
+  billing, and subscription operations
 
 Use the numeric ID returned by `listWorkspaces`. Management responses unwrap
 the OwlVigil `data` envelope while preserving status, headers, and request ID.

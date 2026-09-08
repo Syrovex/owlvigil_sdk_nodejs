@@ -92,6 +92,19 @@ const providers = await client.management.openApi("get_gateway_providers", {
 });
 ```
 
+Every catalog operation also has a generated camelCase convenience method. For
+example:
+
+```ts
+await client.management.getGatewayProvidersProviderId({
+  path: { provider_id: 7 },
+});
+```
+
+The resource-oriented helpers documented in the API overview provide shorter
+names for common workspace, provider, key, webhook, billing, and subscription
+operations.
+
 The catalog is generated from the OwlVigil OpenAPI contract. In a checkout that
 also contains the OpenAPI repository, regenerate it with
 `npm run generate:management`.
