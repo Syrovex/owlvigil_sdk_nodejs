@@ -224,7 +224,10 @@ export interface AnthropicMessage { role: string; content: unknown }
 export interface AnthropicMessageRequest { model: string; messages: AnthropicMessage[]; max_tokens: number; stream?: boolean; [key: string]: unknown }
 export interface AnthropicMessageResponse { id: string; type: string; role: string; model: string; content: unknown; [key: string]: unknown }
 export interface SseEvent { event: string; data: string; id: string }
-export interface WorkspaceList { items: Array<{ id: number; workspace_id?: number; name: string; slug?: string; status?: string; role?: string }>; page_info: { next_cursor?: string; has_more?: boolean } }
+export interface Workspace { id: number; workspace_id?: number; name: string; slug?: string; status?: string; role?: string }
+export interface PageInfo { next_cursor?: string; has_more?: boolean }
+export interface WorkspaceList { items: Workspace[]; page_info: PageInfo }
+export interface ListWorkspacesOptions { cursor?: string; limit?: number }
 export interface UsageSummary { workspace_id?: number; requests: number; tokens: number; cost: number; current_period?: string }
 export interface RequestLog { request_id: string; model: string; status: string; status_code: number; total_tokens: number; total_cost: number; [key: string]: unknown }
 export interface ManagementOperationRequest {
@@ -251,13 +254,32 @@ export class GatewayClient {
 
 export class ManagementClient {
   constructor(private readonly transport: Transport) {}
-  listWorkspaces(params: { cursor?: string; limit?: number } = {}, options?: RequestOptions) {
+  async listWorkspaces(params: ListWorkspacesOptions = {}, options?: RequestOptions): Promise<ApiResponse<WorkspaceList>> {
     const limit = params.limit ?? 50;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new OwlVigilError("limit must be an integer between 1 and 100");
     const query = new URLSearchParams();
     if (params.cursor) query.set("cursor", params.cursor);
     query.set("limit", String(limit));
-    return this.transport.request<WorkspaceList>("GET", `/workspaces?${query}`, undefined, options);
+    const response = await this.transport.request<WorkspaceList | Workspace[]>("GET", `/workspaces?${query}`, undefined, options);
+    if (Array.isArray(response.data)) {
+      return { ...response, data: { items: response.data, page_info: {} } };
+    }
+    return { ...response, data: response.data as WorkspaceList };
+  }
+  /** Iterate through all workspace pages, yielding each workspace once. */
+  async *listWorkspacesAll(options: RequestOptions & { pageSize?: number } = {}): AsyncGenerator<Workspace> {
+    const { pageSize = 50, ...requestOptions } = options;
+    let cursor: string | undefined;
+    const seenCursors = new Set<string>();
+    while (true) {
+      const page = await this.listWorkspaces(cursor === undefined ? { limit: pageSize } : { cursor, limit: pageSize }, requestOptions);
+      for (const workspace of page.data.items) yield workspace;
+      const nextCursor = page.data.page_info.next_cursor;
+      if (!page.data.page_info.has_more || !nextCursor) return;
+      if (seenCursors.has(nextCursor)) throw new OwlVigilError("Management pagination returned a repeated cursor");
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    }
   }
   getUsageSummary(workspaceId: number, options: RequestOptions = {}) {
     requireWorkspaceId(workspaceId);

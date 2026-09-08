@@ -69,6 +69,38 @@ test("preserves management error request id from envelope", async () => {
   });
 });
 
+test("iterates paginated Management workspaces", async () => {
+  const urls: string[] = [];
+  const client = new OwlVigil({
+    apiKey: "test_api_key",
+    managementBaseUrl: "https://api.example.test/v1",
+    fetch: async (input) => {
+      const url = new URL(input instanceof Request ? input.url : input);
+      urls.push(url.toString());
+      const cursor = url.searchParams.get("cursor");
+      return new Response(JSON.stringify({
+        items: cursor ? [{ id: 2, name: "Second" }] : [{ id: 1, name: "First" }],
+        page_info: cursor ? { has_more: false } : { has_more: true, next_cursor: "page-2" },
+      }), { status: 200 });
+    },
+  });
+  const workspaces = [];
+  for await (const workspace of client.management.listWorkspacesAll({ pageSize: 1 })) workspaces.push(workspace);
+  assert.deepEqual(workspaces.map((workspace) => workspace.id), [1, 2]);
+  assert.match(urls[0] ?? "", /limit=1/);
+  assert.match(urls[1] ?? "", /cursor=page-2/);
+});
+
+test("normalizes a bare Management workspace array", async () => {
+  const client = new OwlVigil({
+    apiKey: "test_api_key",
+    fetch: async () => new Response(JSON.stringify([{ id: 1, name: "Workspace" }]), { status: 200 }),
+  });
+  const response = await client.management.listWorkspaces();
+  assert.deepEqual(response.data.items, [{ id: 1, name: "Workspace" }]);
+  assert.deepEqual(response.data.page_info, {});
+});
+
 test("executes operations from the OpenAPI Management catalog", async () => {
   assert.equal(Object.keys(MANAGEMENT_OPERATIONS).length, 144);
   let request: Request | undefined;
