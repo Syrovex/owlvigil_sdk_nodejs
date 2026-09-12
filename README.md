@@ -215,8 +215,8 @@ let ordinary end users control these URLs.
 - Webhook HMAC verification
 - Typed error handling through `OwlVigilError` and `OwlVigilApiError`
 
-See the [API overview](docs/API.md) for the public method list and response
-behavior.
+See the [API overview](https://github.com/Syrovex/owlvigil_sdk_nodejs/blob/main/docs/API.md)
+for the public method list and response behavior.
 
 ## Errors
 

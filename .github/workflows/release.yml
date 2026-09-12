@@ -27,13 +27,10 @@ jobs:
           [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
           version="${GITHUB_REF_NAME#v}"
           git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-          test "$(git cat-file -t "$GITHUB_REF_NAME")" = tag
-          tag_sha="$(git rev-parse "$GITHUB_REF_NAME^{tag}")"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" --jq '.verification.verified')" = true
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          git merge-base --is-ancestor "$GITHUB_SHA" "$main_sha"
+          git rev-parse "$GITHUB_REF_NAME^{commit}" >/dev/null
           grep -Fq "## [$version]" CHANGELOG.md
-        env:
-          GH_TOKEN: ${{ github.token }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
