@@ -7,7 +7,7 @@ export { MANAGEMENT_OPERATIONS } from "./management-operations.js";
 export type { ManagementOperationDefinition, ManagementOperationId } from "./management-operations.js";
 export * from "./management-types.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 
 export interface ResponseMeta {
   status: number;

@@ -1,6 +1,6 @@
 {
   "name": "@owlvigil/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node.js SDK for OwlVigil Gateway and Management APIs",
   "keywords": ["owlvigil", "ai", "gateway", "openai", "sdk"],
   "author": "OwlVigil",
