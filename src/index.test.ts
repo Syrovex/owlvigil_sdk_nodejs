@@ -45,6 +45,22 @@ test("maps Go-compatible environments to service endpoints", async () => {
   assert.throws(() => new OwlVigil({ environment: "preview" as never }), /Unsupported OwlVigil environment/);
 });
 
+test("preserves an explicit non-OwlVigil base URL in local mode", async () => {
+  const urls: string[] = [];
+  const client = new OwlVigil({
+    environment: "local",
+    gatewayKey: "test_gateway_key",
+    gatewayBaseUrl: "https://proxy.example.test/owlvigil",
+    fetch: async (input) => {
+      urls.push(new URL(input instanceof Request ? input.url : input).toString());
+      return new Response(JSON.stringify({ object: "list", data: [] }), { status: 200 });
+    },
+  });
+
+  await client.gateway.listModels();
+  assert.equal(urls[0], "https://proxy.example.test/owlvigil/v1/models");
+});
+
 test("gets a typed Gateway model", async () => {
   const client = new OwlVigil({
     gatewayKey: "test_gateway_key",
@@ -164,12 +180,30 @@ test("exposes a generated convenience method for every catalog operation", async
   assert.equal(response.data.id, 7);
 });
 
-test("rejects attempts to override authentication header", async () => {
+test("rejects attempts to override SDK-managed headers", async () => {
   const client = new OwlVigil({ gatewayKey: "test_gateway_key", fetch: async () => new Response("{}") });
-  await assert.rejects(
-    client.gateway.listModels({ headers: { AuThOrIzAtIoN: "Bearer wrong" } }),
-    (error: unknown) => error instanceof OwlVigilError && /managed by the SDK/.test(error.message),
-  );
+  for (const headers of [
+    { AuThOrIzAtIoN: "Bearer wrong" },
+    { Accept: "text/plain" },
+    { "User-Agent": "custom-agent" },
+  ]) {
+    await assert.rejects(
+      client.gateway.listModels({ headers }),
+      (error: unknown) => error instanceof OwlVigilError && /managed by the SDK/.test(error.message),
+    );
+  }
+});
+
+test("caller cancellation interrupts retry backoff", async () => {
+  const controller = new AbortController();
+  const client = new OwlVigil({
+    gatewayKey: "test_gateway_key",
+    fetch: async () => new Response("{}", { status: 503, headers: { "retry-after": "30" } }),
+  });
+
+  const request = client.gateway.listModels({ signal: controller.signal, maxRetries: 1 });
+  setTimeout(() => controller.abort(new Error("caller cancelled")), 5);
+  await assert.rejects(request, /caller cancelled/);
 });
 
 test("normalizes exhausted transport failures", async () => {

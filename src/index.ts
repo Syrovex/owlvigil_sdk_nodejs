@@ -96,7 +96,7 @@ class Transport {
         const response = await this.options.fetch(url, init);
         if (this.retryable(method, response.status, options) && attempt < maxRetries) {
           await response.body?.cancel().catch(() => undefined);
-          await this.delay(attempt, response.headers.get("retry-after"), signal);
+          await this.delay(attempt, response.headers.get("retry-after"), options.signal);
           continue;
         }
         const text = await response.text();
@@ -120,7 +120,11 @@ class Transport {
       } catch (error) {
         if (error instanceof OwlVigilError || options.signal?.aborted) throw error;
         if (attempt >= maxRetries || !this.retryable(method, -1, options)) throw transportError(error);
-        await this.delay(attempt, null, signal);
+        // Wait on the caller's own signal, not the per-attempt combined signal:
+        // that one may already be aborted (e.g. this attempt just timed out),
+        // in which case it can never fire another "abort" event, and a later
+        // cancellation by the caller during the backoff would go unnoticed.
+        await this.delay(attempt, null, options.signal);
       } finally {
         clearTimeout(timeout);
       }
@@ -184,11 +188,16 @@ class Transport {
     return idempotent && [-1, 408, 429, 502, 503, 504].includes(status);
   }
 
-  private async delay(attempt: number, retryAfter: string | null, signal: AbortSignal): Promise<void> {
+  private async delay(attempt: number, retryAfter: string | null, signal?: AbortSignal): Promise<void> {
     const seconds = retryAfter ? Number(retryAfter) : Number.NaN;
     const dateMs = retryAfter && !Number.isFinite(seconds) ? Date.parse(retryAfter) - Date.now() : Number.NaN;
     const ceiling = Math.min(30_000, Math.max(0, Number.isFinite(seconds) ? seconds * 1000 : Number.isFinite(dateMs) ? dateMs : Math.min(2000, 200 * 2 ** attempt)));
     const ms = ceiling <= 1 ? ceiling : ceiling / 2 + Math.random() * ceiling / 2;
+    if (!signal) {
+      await new Promise<void>((resolve) => setTimeout(resolve, ms));
+      return;
+    }
+    if (signal.aborted) throw signal.reason;
     await new Promise<void>((resolve, reject) => {
       const onAbort = () => { clearTimeout(timer); reject(signal.reason); };
       const timer = setTimeout(() => { signal.removeEventListener("abort", onAbort); resolve(); }, ms);
@@ -579,9 +588,12 @@ function resolveEnvironmentUrl(baseUrl: string, environment: OwlVigilEnvironment
     return url.toString().replace(/\/$/, "");
   }
   if (url.hostname === "gateway.owlvigil.com" || url.hostname === "staginggateway.owlvigil.com") return "http://localhost:8080";
-  if (url.pathname.startsWith("/v1") || url.hostname === "api.owlvigil.com") return "http://localhost:8081/v1";
+  if (url.hostname === "api.owlvigil.com") return "http://localhost:8081/v1";
   if (url.hostname === "open.owlvigil.com" || url.hostname === "stagingapi.owlvigil.com") return "http://localhost:8081";
-  return "http://localhost:8080";
+  // An explicit base URL that isn't one of OwlVigil's own hostnames (a reverse
+  // proxy or test server) is left untouched instead of being silently routed
+  // to a hardcoded local port.
+  return baseUrl;
 }
 
 function requestOptions(options?: RequestOptions): { options?: RequestOptions } {
@@ -641,7 +653,7 @@ function parseSseFrame(frame: string): { event: string; data: string; id?: strin
 
 function safeHeaders(headers: Record<string, string> | undefined): Record<string, string> {
   const result: Record<string, string> = {};
-  const reserved = new Set(["authorization", "host", "content-length", "content-type", "idempotency-key"]);
+  const reserved = new Set(["authorization", "host", "content-length", "content-type", "idempotency-key", "user-agent", "accept"]);
   for (const [name, value] of Object.entries(headers ?? {})) {
     if (reserved.has(name.toLowerCase())) throw new OwlVigilError(`Header ${name} is managed by the SDK`);
     result[name] = value;
