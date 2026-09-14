@@ -163,16 +163,20 @@ commit them to source control.
 
 ## Webhook verification
 
-Verify the original request body bytes before parsing or processing the event:
+Verify the original request body bytes before parsing or processing the event.
+OwlVigil sends the timestamp and versioned signature in separate HTTP headers;
+combine them into the format accepted by `verifyWebhook`:
 
 ```ts
 import { verifyWebhook } from "@owlvigil/sdk";
 
-verifyWebhook(rawBodyBytes, request.headers.get("owlvigil-signature") ?? "", webhookSecret);
+const timestamp = request.headers.get("owlvigil-timestamp") ?? "";
+const signature = request.headers.get("owlvigil-signature") ?? "";
+verifyWebhook(rawBodyBytes, `t=${timestamp},${signature}`, webhookSecret);
 ```
 
-The signature header must contain the timestamp and HMAC signature, for example
-`t=1700000000,v1=...`. The default timestamp tolerance is five minutes.
+`OwlVigil-Signature` contains the versioned value, for example `v1=...`.
+The default timestamp tolerance is five minutes.
 
 ## Configuration
 
@@ -215,8 +219,9 @@ let ordinary end users control these URLs.
 - Webhook HMAC verification
 - Typed error handling through `OwlVigilError` and `OwlVigilApiError`
 
-See the [API overview](https://github.com/Syrovex/owlvigil_sdk_nodejs/blob/main/docs/API.md)
-for the public method list and response behavior.
+See the [English documentation](docs/en-US/README.md) or
+[简体中文文档](docs/zh-CN/README.md) for the complete task-oriented guide and
+public API index.
 
 ## Errors
 
@@ -225,6 +230,12 @@ and error code when available. OAuth errors throw `OwlVigilOAuthError`, which
 includes the OAuth error code, description, and URI. Transport, protocol,
 validation, and local SDK failures throw `OwlVigilError`. All of these errors
 share the `OwlVigilError` base class.
+
+## Documentation
+
+- [English documentation](docs/en-US/README.md)
+- [简体中文文档](docs/zh-CN/README.md)
+- [Documentation language index](docs/README.md)
 
 ## Development and verification
 

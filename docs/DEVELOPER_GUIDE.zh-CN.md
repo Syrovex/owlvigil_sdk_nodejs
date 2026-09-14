@@ -1,6 +1,9 @@
 # OwlVigil Node.js SDK 开发者文档
 
-> 包名：`@owlvigil/sdk` · Node.js：20+ · ESM · 当前版本：`0.2.0`
+> 包名：`@owlvigil/sdk` · Node.js：20+ · ESM · 当前版本：`0.2.1`
+
+这篇单页文档用于兼容已有链接。持续维护的分章节文档请从
+[中文文档目录](zh-CN/README.md) 开始；英文版本见 [English documentation](en-US/README.md)。
 
 本文以当前 TypeScript 导出类型、生成的 Management 契约和测试为准。
 
@@ -140,11 +143,15 @@ secret、authorization code、access token、refresh token 和 `state` 只能放
 import { verifyWebhook } from "@owlvigil/sdk";
 
 const rawBody = new Uint8Array(await request.arrayBuffer());
-verifyWebhook(rawBody, request.headers.get("owlvigil-signature") ?? "", webhookSecret);
+const timestamp = request.headers.get("owlvigil-timestamp") ?? "";
+const signature = request.headers.get("owlvigil-signature") ?? "";
+verifyWebhook(rawBody, `t=${timestamp},${signature}`, webhookSecret);
 ```
 
-签名格式为 `t=<unix-seconds>,v1=<hex-hmac>`，默认五分钟容差，算法为 HMAC-SHA256。验签
-失败应先返回非成功 HTTP 状态；验签成功后再按事件 ID 持久化去重并触发业务处理。
+`OwlVigil-Timestamp` 携带 Unix 时间戳，`OwlVigil-Signature` 携带 `v1=<hex-hmac>`
+形式的版本化签名；传给 SDK 时组合为 `t=<unix-seconds>,v1=<hex-hmac>`。默认五分钟容差，
+算法为 HMAC-SHA256。验签失败应先返回非成功 HTTP 状态；验签成功后再按事件 ID 持久化
+去重并触发业务处理。
 
 Management 的 Endpoint 测试、retry 和 redelivery 会产生新的投递，只能针对具备幂等消费
 能力的接收端执行。

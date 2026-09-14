@@ -1,5 +1,9 @@
 # API overview
 
+This single-page overview is retained for existing links. For the maintained
+task-oriented guide, start with [English documentation](en-US/README.md) or
+[简体中文文档](zh-CN/README.md).
+
 `new OwlVigil()` exposes `gateway`, `management`, and `oauth2`. Credentials may
 be strings or refreshable credential-provider functions.
 
@@ -130,10 +134,14 @@ explicitly supports an idempotency key.
 
 ```ts
 const rawBody = new Uint8Array(await request.arrayBuffer());
-verifyWebhook(rawBody, request.headers.get("owlvigil-signature") ?? "", secret);
+const timestamp = request.headers.get("owlvigil-timestamp") ?? "";
+const signature = request.headers.get("owlvigil-signature") ?? "";
+verifyWebhook(rawBody, `t=${timestamp},${signature}`, secret);
 ```
 
-The canonical header is `t=<unix-seconds>,v1=<hex-hmac>`. Verification uses
+`OwlVigil-Timestamp` carries the Unix timestamp and `OwlVigil-Signature`
+carries the versioned signature, such as `v1=<hex-hmac>`. The SDK combines
+these as `t=<unix-seconds>,v1=<hex-hmac>` for verification. Verification uses
 HMAC-SHA256, constant-time comparison, and a five-minute tolerance by default.
 Reject missing, malformed, stale, or invalid signatures before business work;
 then durably deduplicate the provider event ID before triggering side effects.
