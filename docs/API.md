@@ -1,8 +1,7 @@
 # API overview
 
 This single-page overview is retained for existing links. For the maintained
-task-oriented guide, start with [English documentation](en-US/README.md) or
-[简体中文文档](zh-CN/README.md).
+task-oriented guide, start with the [documentation](en-US/README.md).
 
 `new OwlVigil()` exposes `gateway`, `management`, and `oauth2`. Credentials may
 be strings or refreshable credential-provider functions.

@@ -219,9 +219,8 @@ let ordinary end users control these URLs.
 - Webhook HMAC verification
 - Typed error handling through `OwlVigilError` and `OwlVigilApiError`
 
-See the [English documentation](docs/en-US/README.md) or
-[简体中文文档](docs/zh-CN/README.md) for the complete task-oriented guide and
-public API index.
+See the [documentation](docs/en-US/README.md) for the complete task-oriented
+guide and public API index.
 
 ## Errors
 
@@ -233,9 +232,7 @@ share the `OwlVigilError` base class.
 
 ## Documentation
 
-- [English documentation](docs/en-US/README.md)
-- [简体中文文档](docs/zh-CN/README.md)
-- [Documentation language index](docs/README.md)
+- [Documentation](docs/en-US/README.md)
 
 ## Development and verification
 
